@@ -123,3 +123,12 @@ print(T0_7_corrected.evalf(subs={q1: 0,
 # [-6.12323399573677e-17, -1.22464679914735e-16,                  1.0, 1.946],
 # [                    0,                     0,                    0,   1.0]]
 # where (x,y,z) = (2.153, 0, 1.946) matches the reading under Displays-TF-Frames-gripper-link-position in RViz.
+
+print("The coordinates of T0_7_corrected are:")
+print(T0_7_corrected.evalf(subs={q1: 1.01,
+                                 q2: 0,
+                                 q3: -0.25,
+                                 q4: 0,
+                                 q5: 0,
+                                 q6: 0,
+                                 q7: 0}))
