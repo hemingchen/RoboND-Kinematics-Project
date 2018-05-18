@@ -1,71 +1,116 @@
 ## Project: Kinematics Pick & Place
-### Writeup Template: You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
 
----
+### I. Forward Kinematics
 
+#### 1. Coordinate frame definitions
 
-**Steps to complete the project:**  
+Note the origin and orientation of the frames for DH parameters are different than that defined in kr210.urdf.xacro file.
 
-
-1. Set up your ROS Workspace.
-2. Download or clone the [project repository](https://github.com/udacity/RoboND-Kinematics-Project) into the ***src*** directory of your ROS Workspace.  
-3. Experiment with the forward_kinematics environment and get familiar with the robot.
-4. Launch in [demo mode](https://classroom.udacity.com/nanodegrees/nd209/parts/7b2fd2d7-e181-401e-977a-6158c77bf816/modules/8855de3f-2897-46c3-a805-628b5ecf045b/lessons/91d017b1-4493-4522-ad52-04a74a01094c/concepts/ae64bb91-e8c4-44c9-adbe-798e8f688193).
-5. Perform Kinematic Analysis for the robot following the [project rubric](https://review.udacity.com/#!/rubrics/972/view).
-6. Fill in the `IK_server.py` with your Inverse Kinematics code. 
+![alt text](./misc_images/KR210_DH_param_frames.png)
 
 
-[//]: # (Image References)
+#### 2. DH parameter table
+```
+    {alpha0:     0, a0:      0, d1: 0.750,
+     alpha1: -pi/2, a1:  0.350, d2:     0, q2: q2-pi/2,
+     alpha2:     0, a2:  1.250, d3:     0,
+     alpha3: -pi/2, a3: -0.054, d4: 1.500,
+     alpha4:  pi/2, a4:      0, d5:     0,
+     alpha5: -pi/2, a5:      0, d6:     0,
+     alpha6:     0, a6:      0, d7: 0.303, q7: 0}
+```
+where `a1, a2, a3, d1, d4, d7` are extracted from the kr210.urdf.xacro file.
 
-[image1]: ./misc_images/misc1.png
-[image2]: ./misc_images/misc3.png
-[image3]: ./misc_images/misc2.png
+#### 3. Homogenous transforms
 
-## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+Define:
+```
+T_(i-1)_i = 
+    [[                 cos(theta_i),                 -sin(theta_i),               0,                   a_i-1], 
+     [sin(theta_i) * cos(alpha_i-1), cos(theta_i) * cos(alpha_i-1), -sin(alpha_i-1), -sin(alpha_i-1) * d_i-1], 
+     [sin(theta_i) * sin(alpha_i-1), cos(theta_i) * sin(alpha_i-1),  cos(alpha_i-1),  cos(alpha_i-1) * d_i-1], 
+     [                            0,                             0,                0,                      1]]
+```
+then
+```
+T_0_7 = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_EE
+```
+where `7` = end effector.
 
----
-### Writeup / README
+On the other hand, if define gripper links final orientation as a series rotation of roll, pitch and yaw, the rotation matrices are:
+```
+R_X = Matrix([[          1,           0,          0],
+              [          0,   cos(roll), -sin(roll)],
+              [          0,   sin(roll), cos(roll)]])
+              
+R_Y = Matrix([[ cos(pitch),           0, sin(pitch)],
+              [          0,           1,          0],
+              [-sin(pitch),           0, cos(pitch)]])
 
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  
+R_Z = Matrix([[   cos(yaw),   -sin(yaw),          0],
+              [   sin(yaw),    cos(yaw),          0],
+              [          0,           0,          1]])
+              
+R0_7 = R_Z * R_Y * R_X
+```
+where `7` = end effector.
 
-You're reading it!
+In both cases, due to frame not aligned between frames used in DH and URDF, the correction rotation matrix is:
+```
+R_correction = R_Z(yaw=pi) * R_Y(pitch=-pi/2)
+```
 
-### Kinematic Analysis
-#### 1. Run the forward_kinematics demo and evaluate the kr210.urdf.xacro file to perform kinematic analysis of Kuka KR210 robot and derive its DH parameters.
+Then
+```
+T_0_7_corrected = T_0_7 * R_correction
+R0_7_corrected  =  R0_7 * R_correction
+```
 
-Here is an example of how to include an image in your writeup.
+### II. Inverse  Kinematics
 
-![alt text][image1]
+#### 1. Wrist center
 
-#### 2. Using the DH parameter table you derived earlier, create individual transformation matrices about each joint. In addition, also generate a generalized homogeneous transform between base_link and gripper_link using only end-effector(gripper) pose.
+Knowing final coordinates of gripper is:
+```
+r_ee_0 = Matrix([[px],
+                 [py],
+                 [pz]])
+```
 
-Links | alpha(i-1) | a(i-1) | d(i-1) | theta(i)
---- | --- | --- | --- | ---
-0->1 | 0 | 0 | L1 | qi
-1->2 | - pi/2 | L2 | 0 | -pi/2 + q2
-2->3 | 0 | 0 | 0 | 0
-3->4 |  0 | 0 | 0 | 0
-4->5 | 0 | 0 | 0 | 0
-5->6 | 0 | 0 | 0 | 0
-6->EE | 0 | 0 | 0 | 0
+and the vector between wrist center and gripper is:
+```
+r_ee_wc = 0.303 * R0_7_corrected*Matrix([[0],
+                                         [0],
+                                         [1]])
+```
+From `r_ee_0 = r_wc_0 + r_ee_wc`, we can calculate `r_wc_0 = r_ee_0 - r_ee_wc`.
 
+#### 2. Other joints
 
-#### 3. Decouple Inverse Kinematics problem into Inverse Position Kinematics and inverse Orientation Kinematics; doing so derive the equations to calculate all individual joint angles.
+![alt text](./misc_images/inverse_kinematics.png)
 
-And here's where you can draw out and show your math for the derivation of your theta angles. 
+With the help of the figure above, other joint angles are derived below.
 
-![alt text][image2]
+```
+theta1 = atan2(r_wc_0[1], r_wc_0[0])
+side_b = sqrt(pow(sqrt(r_wc_0[0] * r_wc_0[0] + r_wc_0[1] * r_wc_0[1]) - 0.35, 2) +
+              pow(r_wc_0[2] - 0.75, 2))
 
-### Project Implementation
+angle_a = acos((side_b * side_b + SIDE_C * SIDE_C - SIDE_A * SIDE_A) / (2 * side_b * SIDE_C))
+angle_b = acos((SIDE_A * SIDE_A + SIDE_C * SIDE_C - side_b * side_b) / (2 * SIDE_A * SIDE_C))
 
-#### 1. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results. 
+theta2 = pi / 2. - angle_a - atan2(r_wc_0[2] - 0.75,
+                                   sqrt(r_wc_0[0] * r_wc_0[0] + r_wc_0[1] * r_wc_0[1]) - 0.35)
 
+theta3 = pi / 2. - (angle_b + 0.036)
 
-Here I'll talk about the code, what techniques I used, what worked and why, where the implementation might fail and how I might improve it if I were going to pursue this project further.  
+R0_3 = _fks.T0_3[0:3, 0:3]
+R0_3 = R0_3.evalf(subs={_fks.q1: theta1,
+                        _fks.q2: theta2,
+                        _fks.q3: theta3})
+R3_6 = R0_3.inv("LU") * R0_7_corrected
 
-
-And just for fun, another example image:
-![alt text][image3]
-
-
+theta4 = atan2(R3_6[2, 2], -R3_6[0, 2])
+theta5 = atan2(sqrt(R3_6[0, 2] * R3_6[0, 2] + R3_6[2, 2] * R3_6[2, 2]), R3_6[1, 2])
+theta6 = atan2(-R3_6[1, 1], R3_6[1, 0])
+```
