@@ -114,3 +114,16 @@ theta4 = atan2(R3_6[2, 2], -R3_6[0, 2])
 theta5 = atan2(sqrt(R3_6[0, 2] * R3_6[0, 2] + R3_6[2, 2] * R3_6[2, 2]), R3_6[1, 2])
 theta6 = atan2(-R3_6[1, 1], R3_6[1, 0])
 ```
+
+### III. Results and Issues
+
+A sequence of screenshots can be found below, showing the KR210 picking up an object, maneuvering to target location and dropping the object into the bin.
+
+![alt text](./misc_images/screenshot1.png)
+![alt text](./misc_images/screenshot2.png)
+![alt text](./misc_images/screenshot3.png)
+![alt text](./misc_images/screenshot4.png)
+![alt text](./misc_images/screenshot5.png)
+![alt text](./misc_images/screenshot6.png)
+
+While the inverse kinematics server does give correct IK outputs, I did notice that the overall maneuvering of the robot arm is not very efficient. It tends to perform joint rotations sequentially (possibly for collision avoidance), but this results in long waiting time especially when the arm has more joints. While ensuring a collision free course, the robot arm should perform as many maneuvers as possible at the same time. Hence by the time the arm turns to the bin, the gripper can be ready to drop the object, rather than waiting for the gripper to rotate to desired orientation.
